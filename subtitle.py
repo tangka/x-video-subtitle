@@ -51,6 +51,59 @@ def resolve_model() -> str:
     return "large-v3"
 
 
+def resolve_library() -> Path:
+    """素材库根(与 x-post-cover 的 LIBRARY 同一处,落同一批推文件夹)。"""
+    lib = os.environ.get("LIBRARY")
+    return Path(lib).expanduser() if lib else Path.home() / "wechat-vault" / "微信公众号" / "素材库"
+
+
+# ---------- X 链接 → 视频(缝1+缝3) ----------
+
+X_URL_RE = re.compile(r"(?:https?://)?(?:www\.)?(?:x|twitter)\.com/[^/]+/status/(\d+)")
+
+
+def is_x_url(s: str) -> bool:
+    return bool(X_URL_RE.search(s))
+
+
+def download_from_x(url: str) -> Path:
+    """从 X 链接 yt-dlp 下视频到 素材库/<date>_<handle>_<id>/video.mp4。
+    按 `_<推文id>` 后缀复用 x-post-cover 已建的同一文件夹(封面/正文/视频归一处)。"""
+    tweet_id = X_URL_RE.search(url).group(1)  # type: ignore[union-attr]
+    lib = resolve_library()
+    existing = sorted(lib.glob(f"*_{tweet_id}"))
+    if existing:
+        folder = existing[0]
+        print(f"[x] 复用素材库文件夹 {folder.name}", file=sys.stderr)
+    else:
+        meta = subprocess.run(
+            ["uvx", "yt-dlp", "--no-playlist", "--simulate", "--print",
+             "%(upload_date)s|%(uploader_id)s", url],
+            capture_output=True, text=True)
+        line = (meta.stdout.strip().splitlines() or [""])[-1]
+        date_raw, _, handle = line.partition("|")
+        date = f"{date_raw[:4]}-{date_raw[4:6]}-{date_raw[6:8]}" if len(date_raw) == 8 else "0000-00-00"
+        folder = lib / f"{date}_{(handle or 'x').lstrip('@')}_{tweet_id}"
+        folder.mkdir(parents=True, exist_ok=True)
+        print(f"[x] 新建素材库文件夹 {folder.name}", file=sys.stderr)
+    video = folder / "video.mp4"
+    if video.exists():
+        print(f"[x] 视频已存在,跳过下载", file=sys.stderr)
+        return video
+    print("[x] yt-dlp 下载中(需代理/可能需 Chrome 登录态)...", file=sys.stderr)
+    r = subprocess.run(
+        ["uvx", "yt-dlp", "--no-playlist", "--merge-output-format", "mp4",
+         "-f", "bv*+ba/best", "-o", str(folder / "video.%(ext)s"), url])
+    if r.returncode != 0 or not video.exists():
+        sys.exit("yt-dlp 下载失败(私有视频试 --cookies-from-browser chrome,或检查 http(s)_proxy)。")
+    return video
+
+
+def resolve_video(arg: str) -> Path:
+    """参数是 X 链接就先下载,否则当本地文件。"""
+    return download_from_x(arg) if is_x_url(arg) else Path(arg).resolve()
+
+
 # ---------- 输出路径 ----------
 
 def paths_for(video: str) -> dict[str, Path]:
@@ -224,7 +277,7 @@ def burn(video: Path, ass: Path, out: Path, trim_tail: float) -> None:
 # ---------- 命令 ----------
 
 def cmd_prep(args) -> None:
-    p = paths_for(args.video)
+    p = paths_for(str(resolve_video(args.video)))
     if p["ass"].exists() and not args.force:
         print(f"已存在 {p['ass'].name}(--force 覆盖);跳过 prep。", file=sys.stderr)
         return
@@ -243,7 +296,7 @@ def cmd_prep(args) -> None:
 
 
 def cmd_burn(args) -> None:
-    p = paths_for(args.video)
+    p = paths_for(str(resolve_video(args.video)))
     ass_arg = getattr(args, "ass", None)
     ass = Path(ass_arg).resolve() if ass_arg else p["ass"]
     trim = args.trim_tail if args.trim_tail is not None else float(os.environ.get("SUBTITLE_TRIM_TAIL", "0"))

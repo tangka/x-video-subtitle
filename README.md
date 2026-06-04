@@ -8,8 +8,13 @@ faster-whisper 转写 → DeepSeek 翻译(保轴)→ 双语 ASS → ffmpeg/libas
 
 ## 用法
 
+参数可以是**本地视频文件**,也可以是 **X 推文链接**(自动 yt-dlp 下载,落 `素材库/<date>_<handle>_<id>/`,与 x-post-cover 同一文件夹):
+
 ```bash
-# 一把过(转写+翻译+烧录)
+# 直接喂 X 链接(下载 + 转写 + 翻译 + 烧录,一条命令)
+uv run --python 3.11 --with faster-whisper subtitle.py run "https://x.com/OpenAI/status/2062249312839434452" --trim-tail 2
+
+# 或本地文件
 uv run --python 3.11 --with faster-whisper subtitle.py run video.mp4 --trim-tail 2
 
 # 或两段式(要人工校字幕):

@@ -28,14 +28,14 @@ echo "SKILL_DIR=$SKILL_DIR"
 - `whisper-model` → curl 从 hf-mirror 下 large-v3 到 `$SKILL_DIR/.models/large-v3/`(见 README)。
 - `uv` → `brew install uv` 或 `curl -LsSf https://astral.sh/uv/install.sh | sh`。
 
-**If `READY`**, 跑(`$ARGUMENTS` 为视频路径,可选 `--trim-tail 2` 掐尾防侵权):
+**If `READY`**, 跑(`$ARGUMENTS` 可为**本地视频路径**或 **X 推文链接**,可选 `--trim-tail 2` 掐尾防侵权):
 
 ```bash
 cd "$SKILL_DIR"
 uv run --python 3.11 --with faster-whisper subtitle.py run $ARGUMENTS
 ```
 
-产物落在视频同目录:`<base>.en.srt`(转写留档)、`<base>.zh.ass`(双语字幕,**发布前可手改错词**)、`<base>.zh-hardsub.mp4`(成品)。
+给 X 链接时会先 yt-dlp 下载到 `素材库/<date>_<handle>_<id>/`(按 `_<推文id>` 复用 x-post-cover 已建的同一文件夹),需 `http(s)_proxy`、私有视频需 Chrome 登录态。产物落在视频同目录:`<base>.en.srt`(转写留档)、`<base>.zh.ass`(双语字幕,**发布前可手改错词**)、`<base>.zh-hardsub.mp4`(成品)。
 
 **两段式(要人工校字幕时)**:先 `subtitle.py prep <video>` → 用编辑器/Aegisub 改 `<base>.zh.ass` → 再 `subtitle.py burn <video> [--trim-tail 2]`。
 
