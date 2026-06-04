@@ -86,14 +86,16 @@ def download_from_x(url: str) -> Path:
         folder = lib / f"{date}_{(handle or 'x').lstrip('@')}_{tweet_id}"
         folder.mkdir(parents=True, exist_ok=True)
         print(f"[x] 新建素材库文件夹 {folder.name}", file=sys.stderr)
-    video = folder / "video.mp4"
+    media = folder / "media"
+    media.mkdir(parents=True, exist_ok=True)
+    video = media / "video.mp4"
     if video.exists():
         print(f"[x] 视频已存在,跳过下载", file=sys.stderr)
         return video
     print("[x] yt-dlp 下载中(需代理/可能需 Chrome 登录态)...", file=sys.stderr)
     r = subprocess.run(
         ["uvx", "yt-dlp", "--no-playlist", "--merge-output-format", "mp4",
-         "-f", "bv*+ba/best", "-o", str(folder / "video.%(ext)s"), url])
+         "-f", "bv*+ba/best", "-o", str(media / "video.%(ext)s"), url])
     if r.returncode != 0 or not video.exists():
         sys.exit("yt-dlp 下载失败(私有视频试 --cookies-from-browser chrome,或检查 http(s)_proxy)。")
     return video
