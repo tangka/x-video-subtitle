@@ -62,13 +62,13 @@ video.zh-hardsub.mp4
   brew reinstall ffmpeg          # 标准 formula 带 libass+fontconfig+freetype+harfbuzz
   ffmpeg -h filter=ass | head -1 # 验证不再 Unknown
   ```
-- **兜底**:若环境实在装不上 libass,保留旧 `burn-zh-subtitles.py`(PIL 逐帧)作为 `burn` 的 fallback 实现——接口一致(吃 `.ass` 出 mp4),只是慢且重编码。主路径仍是 libass。
+- 已用 `ffmpeg-full` 装好 libass,烧录走 libass 单遍过;旧的 PIL 逐帧脚本(burn-zh-subtitles.py)已废弃删除。
 
 ## 依赖与配置
 
 - **运行时**:Python ≥3.9;`pip install faster-whisper`(CTranslate2,Apple Silicon 跑 CPU int8/float16);`ffmpeg`(带 libass);DeepSeek key。
 - **模型**:`large-v3`(~3GB)。⚠️ **国内网络 + 公司代理下,`huggingface_hub` 库自动下载会在 etag HEAD 阶段失败**(`LocalEntryNotFoundError`)。可靠做法:用 curl 从 `https://hf-mirror.com/Systran/faster-whisper-<size>/resolve/main/{config.json,tokenizer.json,vocabulary.txt,model.bin}` 直下到本地目录(经 http 代理 200 通),再 `WHISPER_MODEL=<本地目录> HF_HUB_OFFLINE=1` 离线加载。env `WHISPER_MODEL` 也可指向目录或调小模型。
-- **语言**:本 skill 用 Python(faster-whisper 是 Python;顺带把翻译/ffmpeg 编排都放 Python,并可退役旧 PIL 脚本为 fallback 模块)。
+- **语言**:本 skill 用 Python(faster-whisper 是 Python;翻译/ffmpeg 编排都放 Python)。
 - **`.env`**:`DEEPSEEK_API_KEY`(与 x-post-cover 同一个 key)、`WHISPER_MODEL`、`ZH_FONT`、`EN_FONT`、`TARGET_LANG`(默认 zh)。
 
 ## 翻译保轴(③ 细节)
@@ -104,6 +104,6 @@ video.zh-hardsub.mp4
 - [x] 链路三段原型(transcribe/translate/make_ass)跑通
 - [ ] 下 large-v3 模型(curl + hf-mirror)重跑,核对字幕质量
 - [ ] `prep`:faster-whisper 转写 + 切分 + DeepSeek 译 + 写 srt/ass
-- [ ] `burn`:libass 烧录(+ PIL fallback 包旧脚本)
+- [x] `burn`:libass 烧录
 - [ ] `run` 编排 + SKILL.md + .env.example + README
 - [ ] 主项目补 ADR 0008(记录本 skill 与三项决策)
