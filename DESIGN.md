@@ -1,15 +1,13 @@
 # x-video-subtitle — 设计文档
 
-独立 skill:把一段视频(尤其 X 下载的英文视频)转成**中英双语硬字幕**成品。
+独立 skill:把一段视频(尤其 X/Twitter 下载的英文视频)转成**中英双语硬字幕**成品。
 ASR → 切分 → 翻译(保轴)→ 双语 ASS → libass 烧录。产物止于成品视频,人工可在中途检查点改字幕。
 
-> 归属:按主项目 [ADR 0007](../../../tangka-code/good-script/wechat-official-account/docs/adr/0007-phase2-skills-architecture.md)「源/IO + 外部重依赖 → 独立 skill」。x-post-cover 只负责把 `video.mp4` 采进素材库 `media/`,本 skill 独立消费任意视频路径(不限 X)。
-
-## 已定决策(2026-06-04)
+## 设计决策
 
 1. **双语**:中英双语,中文在上(大)、英文在下(小)。
 2. **ASR 引擎**:**faster-whisper**(词级时间戳 → 精细切句 + Silero VAD 去静音)。
-3. **形态**:独立新 skill `x-video-subtitle`(本目录),不并进 x-post-cover。
+3. **形态**:独立 skill `x-video-subtitle`,既能作为 Codex skill 使用,也能命令行直跑。
 
 ## 数据流
 
@@ -47,44 +45,40 @@ video.zh-hardsub.mp4
 - 两个 Style:`ZH`(PingFang/STHeiti,高度 ~5.2%,白字黑描边 ~2.5px,`\an2` 底部居中,MarginV 较大=偏上)、`EN`(Helvetica Neue,高度 ~3.4%,浅灰 `&H00DDDDDD`,MarginV 较小=偏下)。
 - 每个 cue 写**两行 Dialogue**(同时间码,ZH 一行 + EN 一行,靠 MarginV 错开上下)。
 - `PlayResX/Y` 设为视频实际宽高,字号按比例随分辨率缩放。
-- **描边字**(非底框):主流、清晰、libass 原生;不做圆角底框(那是旧 PIL 方案的唯一卖点,换 libass 即舍弃)。
+- **描边字**(非底框):主流、清晰、libass 原生;不做圆角底框,保持烧录链路简单稳定。
 
-## 字体(本机实测)
+## 字体
 
-- 系统**没有** PingFang 系统字体文件(只在某 electron app 的 workaround 目录里);系统可用 CJK 为 **`STHeiti Medium.ttc`**(旧 burn 脚本也用它)。
-- 默认:ZH = `STHeiti Medium`,EN = `Helvetica Neue`。可用 env 覆盖。libass 经 fontconfig 按名解析;必要时 `ass=...:fontsdir=/System/Library/Fonts`。
+- 默认:ZH = `STHeiti Medium`,EN = `Helvetica Neue`。可用 env 覆盖。libass 经 fontconfig 按名解析;必要时可给 `ass` 滤镜传 `fontsdir`。
+- 不同系统的中文字体名称可能不同,建议先用默认值测试一条短视频;如中文字体回退不理想,再设置 `ZH_FONT`。
 
-## ⚠️ 前置依赖:ffmpeg 必须带 libass(当前缺!)
+## 前置依赖:ffmpeg 必须带 libass
 
-- 本机 `/opt/homebrew/bin/ffmpeg` 8.1 **没有 `ass`/`subtitles` 滤镜**(实测 `ffmpeg -h filter=ass` → Unknown filter)。**这很可能就是旧脚本走 PIL 逐帧合成的根因**(没 libass 只能手画)。
-- 主流烧录依赖 libass。落地前先修:
+- 主流字幕烧录依赖 libass。安装后先验证 `ass` 滤镜可用:
   ```bash
-  brew reinstall ffmpeg          # 标准 formula 带 libass+fontconfig+freetype+harfbuzz
+  brew install ffmpeg-full
   ffmpeg -h filter=ass | head -1 # 验证不再 Unknown
   ```
-- 已用 `ffmpeg-full` 装好 libass,烧录走 libass 单遍过;旧的 PIL 逐帧脚本(burn-zh-subtitles.py)已废弃删除。
 
 ## 依赖与配置
 
 - **运行时**:Python ≥3.9;`pip install faster-whisper`(CTranslate2,Apple Silicon 跑 CPU int8/float16);`ffmpeg`(带 libass);DeepSeek key。
-- **模型**:`large-v3`(~3GB)。⚠️ **国内网络 + 公司代理下,`huggingface_hub` 库自动下载会在 etag HEAD 阶段失败**(`LocalEntryNotFoundError`)。可靠做法:用 curl 从 `https://hf-mirror.com/Systran/faster-whisper-<size>/resolve/main/{config.json,tokenizer.json,vocabulary.txt,model.bin}` 直下到本地目录(经 http 代理 200 通),再 `WHISPER_MODEL=<本地目录> HF_HUB_OFFLINE=1` 离线加载。env `WHISPER_MODEL` 也可指向目录或调小模型。
+- **模型**:`large-v3`(~3GB)。可让 faster-whisper 自动下载;网络不稳定时,可用 curl 从 `https://hf-mirror.com/Systran/faster-whisper-<size>/resolve/main/{config.json,tokenizer.json,vocabulary.txt,model.bin}` 直下到本地目录,再 `WHISPER_MODEL=<本地目录> HF_HUB_OFFLINE=1` 离线加载。env `WHISPER_MODEL` 也可指向目录或调小模型。
 - **语言**:本 skill 用 Python(faster-whisper 是 Python;翻译/ffmpeg 编排都放 Python)。
-- **`.env`**:`DEEPSEEK_API_KEY`(与 x-post-cover 同一个 key)、`WHISPER_MODEL`、`ZH_FONT`、`EN_FONT`、`TARGET_LANG`(默认 zh)。
+- **`.env`**:`DEEPSEEK_API_KEY`、`LIBRARY`、`WHISPER_MODEL`、`ZH_FONT`、`EN_FONT`、`TARGET_LANG`(默认 zh)。
 
 ## 翻译保轴(③ 细节)
 
-- 不逐句裸译(丢上下文→割裂)。沿用 x-post-cover/scrape.ts 的 `[N]` 对齐法:把全部 cue 文本带序号一次性发 DeepSeek,要求**保持行数、按序号回填**;术语(Codex/ChatGPT/token…)留英文。
+- 不逐句裸译(丢上下文→割裂)。使用 `[N]` 对齐法:把全部 cue 文本带序号一次性发 DeepSeek,要求**保持行数、按序号回填**;术语(Codex/ChatGPT/token…)留英文。
 - 译文行数与 cue 数必须一致;不一致则报错回退(宁可报错也不错位)。
-- 公众号短视频风格已固化进 prompt:中文要短、自然、少直译腔;`skill` 保留英文;常用 Codex 术语固定为“电脑操作 / 浏览器操作 / 你连接的插件 / 线程 / 元数据 / 字幕 / 缩略图 / 视频包”。
+- 中文短视频字幕风格已固化进 prompt:中文要短、自然、少直译腔;`skill` 保留英文;常用 Codex 术语固定为“电脑操作 / 浏览器操作 / 你连接的插件 / 线程 / 元数据 / 字幕 / 缩略图 / 视频包”。
 - ASR 常把一句话切成上下半句,例如第一条 cue 结尾是 `turn what it`,第二条才是 `learns into a skill...`。翻译 prompt 明确要求**碎片行也必须给中文续句**,脚本也把“缺行或空中文行”视为失败并重试一次,避免烧出只有英文的空中文字幕。
 - 翻译后还有一层轻量 `polish_zh()` / `normalize_en()`:把“计算机使用/计算机操作”收敛为“电脑操作”,“浏览器使用”收敛为“浏览器操作”,“技能”在 skill 语境下收敛为 `skill`,并把 ASR 常见误写 `CHAT-GPT`/`CHAT GPT`/`OPEN AI` 收敛为 `ChatGPT`/`OpenAI`。这层只做窄替换,避免大面积改坏译文。
 
-## 产物布局(接素材库)
+## 产物布局
 
 ```
-素材库/<date>_<handle>_<id>/
-  cover.png
-  content.md
+~/x-video-subtitle-library/<date>_<handle>_<id>/
   media/
     video.mp4
     video.en.srt          # whisper 转写留档
@@ -92,21 +86,19 @@ video.zh-hardsub.mp4
     video.zh-hardsub.mp4  # 成品
 ```
 
-## SKILL.md(实现期再写)
+## Skill 入口
 
-- `user-invocable`,`/x-subtitle <video-path>`(给 X URL 时可先 yt-dlp 或由 x-post-cover 采)。
+- `user-invocable`,`/x-subtitle <video-path-or-x-url>`。
 - bootstrap:检查 faster-whisper 已装、ffmpeg 带 libass、DEEPSEEK_API_KEY;缺则提示安装/配置。
 
-## 端到端验证(2026-06-04 已通过)
+## 端到端验证
 
-用 `https://x.com/OpenAI/status/2062249312839434452`(90s 1080p)全链路跑通:yt-dlp 下载 → faster-whisper(base)转写 12 段 → DeepSeek 译 12/12 → 双语 ASS → libass 烧录 → `video.zh-hardsub.mp4`。抽帧确认「中上英下」布局正确、CJK(Heiti SC)清晰描边、英文(Helvetica Neue)在下。原型脚本:`transcribe.py` / `translate.py` / `make_ass.py`(在本目录)。`base` 模型质量糙(误听产品名),正式需 large-v3。
+推荐用一条 10 到 30 秒的公开英文视频先跑通:yt-dlp 下载 → faster-whisper 转写 → DeepSeek 翻译 → 双语 ASS → libass 烧录 → `video.zh-hardsub.mp4`。随后抽帧确认「中文在上、英文在下」布局正确、中文字体清晰描边、字幕没有贴边或遮挡主体。
 
-## 待办(实现阶段)
+## 维护清单
 
-- [x] 修 ffmpeg(libass)前置 + 验证 → 改用 `ffmpeg-full`,已验证
-- [x] 链路三段原型(transcribe/translate/make_ass)跑通
-- [ ] 下 large-v3 模型(curl + hf-mirror)重跑,核对字幕质量
-- [ ] `prep`:faster-whisper 转写 + 切分 + DeepSeek 译 + 写 srt/ass
+- [x] `prep`:faster-whisper 转写 + DeepSeek 翻译 + 写 srt/ass
 - [x] `burn`:libass 烧录
-- [ ] `run` 编排 + SKILL.md + .env.example + README
-- [ ] 主项目补 ADR 0008(记录本 skill 与三项决策)
+- [x] `run`:prep + burn 一把过
+- [x] Codex `SKILL.md` bootstrap + README + `.env.example`
+- [ ] 增加更多语言和字幕样式 preset
