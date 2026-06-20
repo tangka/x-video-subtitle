@@ -75,6 +75,9 @@ video.zh-hardsub.mp4
 
 - 不逐句裸译(丢上下文→割裂)。沿用 x-post-cover/scrape.ts 的 `[N]` 对齐法:把全部 cue 文本带序号一次性发 DeepSeek,要求**保持行数、按序号回填**;术语(Codex/ChatGPT/token…)留英文。
 - 译文行数与 cue 数必须一致;不一致则报错回退(宁可报错也不错位)。
+- 公众号短视频风格已固化进 prompt:中文要短、自然、少直译腔;`skill` 保留英文;常用 Codex 术语固定为“电脑操作 / 浏览器操作 / 你连接的插件 / 线程 / 元数据 / 字幕 / 缩略图 / 视频包”。
+- ASR 常把一句话切成上下半句,例如第一条 cue 结尾是 `turn what it`,第二条才是 `learns into a skill...`。翻译 prompt 明确要求**碎片行也必须给中文续句**,脚本也把“缺行或空中文行”视为失败并重试一次,避免烧出只有英文的空中文字幕。
+- 翻译后还有一层轻量 `polish_zh()` / `normalize_en()`:把“计算机使用/计算机操作”收敛为“电脑操作”,“浏览器使用”收敛为“浏览器操作”,“技能”在 skill 语境下收敛为 `skill`,并把 ASR 常见误写 `CHAT-GPT`/`CHAT GPT`/`OPEN AI` 收敛为 `ChatGPT`/`OpenAI`。这层只做窄替换,避免大面积改坏译文。
 
 ## 产物布局(接素材库)
 

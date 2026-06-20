@@ -148,7 +148,7 @@ def transcribe(video: Path, model: str, lang: str) -> list[dict]:
         vad_filter=True, word_timestamps=True)
     cues: list[dict] = []
     for seg in segments:
-        text = seg.text.strip()
+        text = normalize_en(seg.text.strip())
         if not text:
             continue
         cues.append({"start": round(seg.start, 3), "end": round(seg.end, 3), "en": text})
@@ -159,14 +159,50 @@ def transcribe(video: Path, model: str, lang: str) -> list[dict]:
 
 # ---------- ② 翻译(保轴) ----------
 
-def translate(cues: list[dict], target: str, api_key: str) -> None:
-    numbered = "\n".join(f"[{i + 1}] {c['en']}" for i, c in enumerate(cues))
-    prompt = (
+TRANSLATION_STYLE_GUIDE = """Style guide for Chinese subtitles:
+- Audience: Chinese WeChat/tech readers. Make the Chinese natural, concise, and spoken.
+- Keep brand/product terms in English: Codex, ChatGPT, GPT, OpenAI, Claude, API, token, PR.
+- Keep "skill" as lowercase English when it means a reusable Codex capability.
+- Use these fixed terms:
+  computer use = 电脑操作
+  browser use = 浏览器操作
+  connected plugins = 你连接的插件
+  thread = 线程
+  metadata = 元数据
+  caption/captions = 字幕
+  thumbnail = 缩略图
+  upload package / video package = 视频包
+  private = 私密状态
+- Some ASR cues are sentence fragments. Translate every numbered line anyway; if a line is a continuation, write a short natural continuation in Chinese. Never leave a Chinese line blank.
+- Prefer short subtitle phrasing. Avoid stiff literal wording like “计算机使用” or “这项技能” when “电脑操作” or “这个skill” is clearer.
+"""
+
+
+def normalize_en(text: str) -> str:
+    """收敛 ASR 对品牌词的大小写/断字符误识别。"""
+    out = re.sub(r"\bCHAT[-\s]?GPT\b", "ChatGPT", text, flags=re.I)
+    out = re.sub(r"\bOPEN[-\s]?AI\b", "OpenAI", out, flags=re.I)
+    return out
+
+
+def build_translation_prompt(numbered: str, target: str, missing: list[int] | None = None) -> str:
+    retry_note = ""
+    if missing:
+        retry_note = (
+            "\nThe previous response missed or left blank these line numbers: "
+            f"{', '.join(str(i) for i in missing)}. "
+            "Retry from scratch and translate every [N], including fragments.\n"
+        )
+    return (
         f"Translate each numbered subtitle line into {target}. "
         "Keep the [N] numbers and the exact same number of lines. "
-        "Leave technical terms (Codex, ChatGPT, GPT, token, API, etc.) in English. "
-        "Output only the translated lines, one per [N], no extra text.\n\n" + numbered
+        "Output only the translated lines, one per [N], no extra text.\n\n"
+        f"{TRANSLATION_STYLE_GUIDE}{retry_note}\n"
+        f"{numbered}"
     )
+
+
+def deepseek_translate(prompt: str, api_key: str) -> str:
     body = json.dumps({
         "model": "deepseek-chat",
         "messages": [{"role": "user", "content": prompt}],
@@ -178,18 +214,65 @@ def translate(cues: list[dict], target: str, api_key: str) -> None:
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"})
     with urllib.request.urlopen(req, timeout=120) as resp:
         data = json.load(resp)
-    text = data["choices"][0]["message"]["content"]
+    return data["choices"][0]["message"]["content"]
 
+
+def parse_numbered_translations(text: str) -> dict[int, str]:
     zh_by_idx: dict[int, str] = {}
     for part in re.split(r"(?=\[\d+\])", text):
         m = re.match(r"\[(\d+)\]\s*(.*)", part.strip(), re.S)
         if m:
             zh_by_idx[int(m.group(1))] = m.group(2).strip().replace("\n", " ")
-    missing = [i + 1 for i in range(len(cues)) if (i + 1) not in zh_by_idx]
+    return zh_by_idx
+
+
+def polish_zh(en: str, zh: str) -> str:
+    """固定常见术语与口吻,减少每次人工改同一批词。"""
+    out = re.sub(r"\s+", " ", zh).strip()
+    out = normalize_en(out)
+    replacements = [
+        ("计算机使用", "电脑操作"),
+        ("计算机操作", "电脑操作"),
+        ("浏览器使用", "浏览器操作"),
+        ("已连接的插件", "你连接的插件"),
+        ("你的连接插件", "你连接的插件"),
+        ("上传包", "视频包"),
+        ("视频上传包", "视频包"),
+        ("设为私人", "保存为私密状态"),
+        ("设为私有", "保存为私密状态"),
+        ("私有状态", "私密状态"),
+    ]
+    for old, new in replacements:
+        out = out.replace(old, new)
+    out = re.sub(r"(?<!你)连接的插件", "你连接的插件", out)
+
+    if "skill" in en.lower():
+        out = out.replace("这项技能", "这个skill")
+        out = out.replace("该技能", "这个skill")
+        out = out.replace("可重复使用的技能", "可复用的skill")
+        out = out.replace("技能", "skill")
+    return out
+
+
+def translate(cues: list[dict], target: str, api_key: str) -> None:
+    numbered = "\n".join(f"[{i + 1}] {c['en']}" for i, c in enumerate(cues))
+    text = ""
+    zh_by_idx: dict[int, str] = {}
+    missing: list[int] = []
+    for attempt in range(2):
+        prompt = build_translation_prompt(numbered, target, missing if attempt else None)
+        text = deepseek_translate(prompt, api_key)
+        zh_by_idx = parse_numbered_translations(text)
+        missing = [
+            i + 1 for i in range(len(cues))
+            if not zh_by_idx.get(i + 1, "").strip()
+        ]
+        if not missing:
+            break
     if missing:
-        sys.exit(f"译文缺行 {missing},宁可报错不错位。返回:\n{text}")
+        sys.exit(f"译文缺行/空行 {missing},宁可报错不错位。返回:\n{text}")
     for i, c in enumerate(cues):
-        c["zh"] = zh_by_idx[i + 1]
+        c["zh"] = polish_zh(c["en"], zh_by_idx[i + 1])
     print(f"[mt] 译完 {len(cues)} 行", file=sys.stderr)
 
 

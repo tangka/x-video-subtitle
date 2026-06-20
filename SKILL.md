@@ -6,6 +6,12 @@ user-invocable: true
 
 把视频做成**中英双语硬字幕**成品(中文在上、英文在下)。链路:faster-whisper 转写 → DeepSeek 翻译 → libass 烧录。
 
+内置字幕规范:
+- 中文按公众号短视频口吻翻译:短、自然、少直译腔。
+- 固定术语:`skill` 保留英文;`computer use`=电脑操作;`browser use`=浏览器操作;`connected plugins`=你连接的插件;`thread`=线程;`metadata`=元数据;`captions`=字幕;`thumbnail`=缩略图;`upload package/video package`=视频包。
+- 自动规整 ASR 常见品牌词误写:`CHAT-GPT`/`CHAT GPT`→`ChatGPT`,`OPEN AI`→`OpenAI`。
+- ASR 把一句话切成上下半句时,每一条 cue 都必须有中文,不允许出现只有英文的空中文行。
+
 ## Step 1 — bootstrap check
 
 ```bash
@@ -40,3 +46,9 @@ uv run --python 3.11 --with faster-whisper subtitle.py run $ARGUMENTS
 **两段式(要人工校字幕时)**:先 `subtitle.py prep <video>` → 用编辑器/Aegisub 改 `<base>.zh.ass` → 再 `subtitle.py burn <video> [--trim-tail 2]`。
 
 报告产物路径;失败则报错误。
+
+建议交付前抽帧检查一次字幕安全区:
+
+```bash
+ffmpeg -hide_banner -loglevel error -y -i <base>.zh-hardsub.mp4 -vf "fps=1/12,scale=480:-1,tile=4x3" -frames:v 1 /tmp/subtitle-check.jpg
+```

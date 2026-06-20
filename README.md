@@ -6,6 +6,8 @@
 faster-whisper 转写 → DeepSeek 翻译(保轴)→ 双语 ASS → ffmpeg/libass 烧录
 ```
 
+翻译层内置公众号字幕规范:中文短句、少直译腔;`skill` 保留英文;`computer use / browser use / connected plugins` 固定译作“电脑操作 / 浏览器操作 / 你连接的插件”;`CHAT-GPT`/`CHAT GPT` 会规整为 `ChatGPT`;ASR 切出的英文续行也必须有中文,不会静默产出空中文行。
+
 ## 用法
 
 参数可以是**本地视频文件**,也可以是 **X 推文链接**(自动 yt-dlp 下载,落 `素材库/<date>_<handle>_<id>/`,与 x-post-cover 同一文件夹):
@@ -24,6 +26,12 @@ uv run --python 3.11 --with faster-whisper subtitle.py burn video.mp4 --trim-tai
 ```
 
 产物落视频同目录:`*.en.srt`(转写留档)、`*.zh.ass`(字幕,**人工检查点**)、`*.zh-hardsub.mp4`(成品)。
+
+交付前可抽帧看字幕位置:
+
+```bash
+ffmpeg -hide_banner -loglevel error -y -i video.zh-hardsub.mp4 -vf "fps=1/12,scale=480:-1,tile=4x3" -frames:v 1 /tmp/subtitle-check.jpg
+```
 
 ## 依赖与安装(macOS / 国内网络)
 
