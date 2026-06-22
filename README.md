@@ -79,10 +79,10 @@ ffmpeg -hide_banner -loglevel error -y -i video.zh-hardsub.mp4 -vf "fps=1/12,sca
 
 这套工具来自我运营的两个公众号,欢迎关注 👇
 
-- **Codexx** —— Codex 铁粉中文社区(扫下方二维码关注)
-- **ClaudeDevs** —— Claude 中文社区(微信搜索「Claude 中文社区」关注)
+- **Codexx** —— Codex 铁粉中文社区
+- **ClaudeDevs** —— Claude 中文社区
 
-<img src="promo/codexx-qrcode.jpg" width="160" alt="Codexx 公众号">
+<img src="promo/codexx-qrcode.jpg" width="160" alt="Codexx 公众号"> &nbsp;&nbsp; <img src="promo/claudedevs-qrcode.jpg" width="160" alt="ClaudeDevs 公众号">
 
 如果这些工具帮到你,欢迎请我喝杯咖啡 ☕
 
