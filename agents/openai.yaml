@@ -1,0 +1,7 @@
+interface:
+  display_name: "X Subtitle"
+  short_description: "Burn bilingual (Chinese + English) hard subtitles onto a video"
+  default_prompt: "/x-subtitle <video.mp4 or X video URL>"
+
+policy:
+  allow_implicit_invocation: true
