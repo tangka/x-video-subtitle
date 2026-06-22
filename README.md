@@ -74,3 +74,16 @@ ffmpeg -hide_banner -loglevel error -y -i video.zh-hardsub.mp4 -vf "fps=1/12,sca
 见 `.env.example`:`LIBRARY`、`WHISPER_MODEL`(默认内置 large-v3)、`ZH_FONT`/`EN_FONT`(默认 Heiti SC / Helvetica Neue)、`TARGET_LANG_NAME`、`SUBTITLE_TRIM_TAIL`。
 
 设计细节见 [`DESIGN.md`](DESIGN.md)。
+
+## 📣 关于作者 & 支持
+
+这套工具来自我运营的两个公众号,欢迎关注 👇
+
+- **Codexx** —— Codex 铁粉中文社区(扫下方二维码关注)
+- **ClaudeDevs** —— Claude 中文社区(微信搜索「Claude 中文社区」关注)
+
+<img src="promo/codexx-qrcode.jpg" width="160" alt="Codexx 公众号">
+
+如果这些工具帮到你,欢迎请我喝杯咖啡 ☕
+
+<img src="promo/wx_qr.png" width="200" alt="微信"> &nbsp;&nbsp; <img src="promo/ali_qr.png" width="200" alt="支付宝">
